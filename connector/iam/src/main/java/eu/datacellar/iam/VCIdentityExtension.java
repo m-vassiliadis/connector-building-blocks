@@ -56,7 +56,7 @@ public class VCIdentityExtension implements ServiceExtension {
 
     private static final String DEV_UNIRESOLVER_URL = "https://dev.uniresolver.io/1.0/identifiers";
 
-    private static final String DEFAULT_VC_TYPE = "DataCellarCredential";
+    private static final String DEFAULT_VC_TYPE = "OpenTunityCredential";
 
     private static final int DEFAULT_TOKEN_TTL_MINUTES = 3;
 
