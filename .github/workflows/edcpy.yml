@@ -1,9 +1,10 @@
 name: Publish edcpy
 
 on:
-  push:
-    branches:
-      - main
+  #push:
+  #  branches:
+  #    - main
+  workflow_dispatch:
 
 defaults:
   run:
