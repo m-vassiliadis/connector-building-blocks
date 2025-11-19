@@ -1,12 +1,13 @@
 name: Publish core connector image
 
 on:
-  push:
-    branches:
-      - main
+  #push:
+  #  branches:
+  #    - main
+  workflow_dispatch:
 
 env:
-  IMAGE_NAME: agmangas/edc-connector
+  IMAGE_NAME: mvassiliadis20/edc-connector
 
 jobs:
   build-push:
