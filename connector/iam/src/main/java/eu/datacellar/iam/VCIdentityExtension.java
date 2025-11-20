@@ -31,28 +31,28 @@ public class VCIdentityExtension implements ServiceExtension {
     public static final String NAME = "VC-based IAM";
 
     @Setting
-    private static final String WALLET_URL = "eu.datacellar.wallet.url";
+    private static final String WALLET_URL = "dataspace.wallet.url";
 
     @Setting
-    private static final String WALLET_EMAIL = "eu.datacellar.wallet.email";
+    private static final String WALLET_EMAIL = "dataspace.wallet.email";
 
     @Setting
-    private static final String WALLET_PASSWORD = "eu.datacellar.wallet.password";
+    private static final String WALLET_PASSWORD = "dataspace.wallet.password";
 
     @Setting
-    private static final String WALLET_ID = "eu.datacellar.wallet.id";
+    private static final String WALLET_ID = "dataspace.wallet.id";
 
     @Setting
-    private static final String TRUST_ANCHOR_DID = "eu.datacellar.trust.did";
+    private static final String TRUST_ANCHOR_DID = "dataspace.trust.did";
 
     @Setting
-    private static final String UNIVERSAL_RESOLVER_URL = "eu.datacellar.uniresolver.url";
+    private static final String UNIVERSAL_RESOLVER_URL = "dataspace.uniresolver.url";
 
     @Setting
-    private static final String VC_TYPE = "eu.datacellar.vc.type";
+    private static final String VC_TYPE = "dataspace.vc.type";
 
     @Setting
-    private static final String TOKEN_TTL_MINUTES = "eu.datacellar.token.ttl.minutes";
+    private static final String TOKEN_TTL_MINUTES = "dataspace.token.ttl.minutes";
 
     private static final String DEV_UNIRESOLVER_URL = "https://dev.uniresolver.io/1.0/identifiers";
 

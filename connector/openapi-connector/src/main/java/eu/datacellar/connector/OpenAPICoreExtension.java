@@ -90,13 +90,13 @@ public class OpenAPICoreExtension implements ServiceExtension {
     public String openapiUrl;
 
     @Setting
-    private static final String OPENAPI_URL = "eu.datacellar.openapi.url";
+    private static final String OPENAPI_URL = "dataspace.openapi.url";
 
     @Setting
-    private static final String HTTP_SCHEME = "eu.datacellar.http.scheme";
+    private static final String HTTP_SCHEME = "dataspace.http.scheme";
 
     @Setting
-    private static final String API_BASE_URL = "eu.datacellar.base.url";
+    private static final String API_BASE_URL = "dataspace.base.url";
 
     @Setting
     private static final String BACKEND_API_AUTH_KEY_HEADER = "es.ctic.backend.auth.key.header";
@@ -128,13 +128,13 @@ public class OpenAPICoreExtension implements ServiceExtension {
     // assets.
     // Default value is "true" to ensure rich metadata by default.
     @Setting
-    private static final String OMEGAX_DECORATION_ENABLED = "eu.datacellar.omegax.decoration.enabled";
+    private static final String OMEGAX_DECORATION_ENABLED = "dataspace.omegax.decoration.enabled";
 
     @Setting
-    private static final String OMEGAX_DECORATION_CREATOR_NAME = "eu.datacellar.omegax.decoration.default.creator.name";
+    private static final String OMEGAX_DECORATION_CREATOR_NAME = "dataspace.omegax.decoration.default.creator.name";
 
     @Setting
-    private static final String OMEGAX_DECORATION_PUBLISHER_HOMEPAGE = "eu.datacellar.omegax.decoration.default.publisher.homepage";
+    private static final String OMEGAX_DECORATION_PUBLISHER_HOMEPAGE = "dataspace.omegax.decoration.default.publisher.homepage";
 
     // Controls whether the connector should continue initialization when OpenAPI
     // validation fails.
@@ -145,7 +145,7 @@ public class OpenAPICoreExtension implements ServiceExtension {
     // initialization.
     // Default value is "true" to continue on validation failures.
     @Setting
-    private static final String OPENAPI_VALIDATION_CONTINUE_ON_FAILURE = "eu.datacellar.openapi.validation.continue.on.failure";
+    private static final String OPENAPI_VALIDATION_CONTINUE_ON_FAILURE = "dataspace.openapi.validation.continue.on.failure";
 
     @Inject
     private HttpRequestParamsProvider paramsProvider;

@@ -156,15 +156,15 @@ edc.transfer.proxy.token.verifier.publickey.alias=publickey
 These are the aliases for the private key and public certificate. The value `publickey` refers to the item containing the public certificate in the `vault.properties` file.
 
 ```properties
-eu.datacellar.openapi.url=http://host.docker.internal:9090/openapi.json
+dataspace.openapi.url=http://host.docker.internal:9090/openapi.json
 ```
 
 > [!NOTE]
-> All properties with names starting with `eu.datacellar` are defined within the extensions contained in this repository and are not part of the original connector codebase.
+> All properties with names starting with `dataspace` are defined within the extensions contained in this repository and are not part of the original connector codebase.
 
 This is the URL where the OpenAPI schema file of the Mock HTTP API is accessible. The connector will retrieve this file to dynamically build the assets and expose them to the data space.
 
-Finally, the `eu.datacellar.wallet.*`, `eu.datacellar.trust.*` and `eu.datacellar.uniresolver.*` properties are part of the W3C Verifiable Credentials extension and are not relevant for this example either.
+Finally, the `dataspace.wallet.*`, `dataspace.trust.*` and `dataspace.uniresolver.*` properties are part of the W3C Verifiable Credentials extension and are not relevant for this example either.
 
 **4. Deploy the connector**
 

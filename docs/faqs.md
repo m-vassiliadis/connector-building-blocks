@@ -11,7 +11,7 @@ The **consumer backend** implementation is provided out-of-the-box by the [`edcp
 
 **How does the provider know how to expose the Mock Backend HTTP API and create the related assets in the data space?**
 
-The Mock Backend HTTP API must expose a schema file that adheres to the [OpenAPI specifications](https://spec.openapis.org/oas/latest.html). The URL to this file is provided as a configuration property (`eu.datacellar.openapi.url`) to the provider. Upon initialization, the provider retrieves the schema file and builds the necessary assets.
+The Mock Backend HTTP API must expose a schema file that adheres to the [OpenAPI specifications](https://spec.openapis.org/oas/latest.html). The URL to this file is provided as a configuration property (`dataspace.openapi.url`) to the provider. Upon initialization, the provider retrieves the schema file and builds the necessary assets.
 
 The JSON file of the API schema serves as the authoritative source, determining how the HTTP API will be represented within the data space.
 

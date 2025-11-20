@@ -10,25 +10,25 @@ This guide shows how to run the [minimal example](index.md) using the SSI extens
 
 There are two configuration files in the `dev-config` folder: `dev-consumer.properties` and `dev-provider.properties`. These files contain the configuration for the consumer and provider connectors, respectively.
 
-Most of the configuration properties in those files are already explained in the main README. However, there are some new `eu.datacellar.*` properties that are related to the SSI identity extension. For example, in the case of the consumer connector:
+Most of the configuration properties in those files are already explained in the main README. However, there are some new `dataspace.*` properties that are related to the SSI identity extension. For example, in the case of the consumer connector:
 
 ```properties
-eu.datacellar.wallet.url=http://host.docker.internal:7001
-eu.datacellar.wallet.email=consumer@ctic.es
-eu.datacellar.wallet.password=consumer
-eu.datacellar.trust.did=did:web:gaiax.cticpoc.com:anchor
-eu.datacellar.uniresolver.url=https://uniresolver.test.ctic.es/1.0/identifiers
+dataspace.wallet.url=http://host.docker.internal:7001
+dataspace.wallet.email=consumer@ctic.es
+dataspace.wallet.password=consumer
+dataspace.trust.did=did:web:gaiax.cticpoc.com:anchor
+dataspace.uniresolver.url=https://uniresolver.test.ctic.es/1.0/identifiers
 ```
 
-| Property                        | Description                                                                                                                                                                                   |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eu.datacellar.wallet.url`      | The URL of the wallet API.                                                                                                                                                                    |
-| `eu.datacellar.wallet.email`    | The email of the wallet administrator user.                                                                                                                                                   |
-| `eu.datacellar.wallet.password` | The password of the wallet administrator user.                                                                                                                                                |
-| `eu.datacellar.trust.did`       | The DID of the trust anchor that the consumer connector trusts.                                                                                                                               |
-| `eu.datacellar.uniresolver.url` | The URL of an instance of the [DIF Universal Resolver](https://github.com/decentralized-identity/universal-resolver). This service is leveraged by connectors to resolve DIDs to public keys. |
+| Property                     | Description                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dataspace.wallet.url`       | The URL of the wallet API.                                                                                                                                                                    |
+| `dataspace.wallet.email`     | The email of the wallet administrator user.                                                                                                                                                   |
+| `dataspace.wallet.password`  | The password of the wallet administrator user.                                                                                                                                                |
+| `dataspace.trust.did`        | The DID of the trust anchor that the consumer connector trusts.                                                                                                                               |
+| `dataspace.uniresolver.url`  | The URL of an instance of the [DIF Universal Resolver](https://github.com/decentralized-identity/universal-resolver). This service is leveraged by connectors to resolve DIDs to public keys. |
 
-You only need to update the `eu.datacellar.uniresolver.url` to point to a running instance of the Universal Resolver. The default value points to a development instance in CTIC's test environment, which may not be available. The rest of the values should match the default configuration throughout the example.
+You only need to update the `dataspace.uniresolver.url` to point to a running instance of the Universal Resolver. The default value points to a development instance in CTIC's test environment, which may not be available. The rest of the values should match the default configuration throughout the example.
 
 > [!TIP]
 > There's a development instance of the Universal Resolver available here, which may be used for testing purposes: [https://dev.uniresolver.io/](https://dev.uniresolver.io/). Please note that this is a development instance and thus may be unstable.
