@@ -99,10 +99,10 @@ public class OpenAPICoreExtension implements ServiceExtension {
     private static final String API_BASE_URL = "dataspace.base.url";
 
     @Setting
-    private static final String BACKEND_API_AUTH_KEY_HEADER = "es.ctic.backend.auth.key.header";
+    private static final String BACKEND_API_AUTH_KEY_HEADER = "dataspace.backend.auth.key.header";
 
     @Setting
-    private static final String BACKEND_API_AUTH_KEY_ENVVAR = "es.ctic.backend.auth.key.envvar";
+    private static final String BACKEND_API_AUTH_KEY_ENVVAR = "dataspace.backend.auth.key.envvar";
 
     // Controls whether authorization constraints are added to policies.
     // When enabled (true), the connector will enforce authorization checks using:
