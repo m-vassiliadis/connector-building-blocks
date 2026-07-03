@@ -104,6 +104,9 @@ public class OpenAPICoreExtension implements ServiceExtension {
     @Setting
     private static final String BACKEND_API_AUTH_KEY_ENVVAR = "dataspace.backend.auth.key.envvar";
 
+    @Setting
+    private static final String BACKEND_API_AUTH_HEADERS_B64 = "dataspace.backend.auth.headers.b64";
+
     // Controls whether authorization constraints are added to policies.
     // When enabled (true), the connector will enforce authorization checks using:
     // 1. A list of implicitly trusted DIDs (Decentralized Identifiers)
@@ -525,12 +528,28 @@ public class OpenAPICoreExtension implements ServiceExtension {
         paramsProvider
                 .registerSourceDecorator(new ContractDetailsHttpParamsDecorator(monitor, contractNegotiationStore));
 
-        // Check if backend API authentication is configured
-        // This will be used to set an API key header in the proxied requests
+        // Check if backend API authentication is configured. The multi-header
+        // setting takes precedence; the single API key settings remain supported for
+        // older participant packages.
+        String backendAuthHeadersB64 = context.getSetting(BACKEND_API_AUTH_HEADERS_B64, null);
         String backendAuthKeyHeader = context.getSetting(BACKEND_API_AUTH_KEY_HEADER, null);
         String backendAuthKeyEnvVar = context.getSetting(BACKEND_API_AUTH_KEY_ENVVAR, null);
 
-        if (backendAuthKeyHeader != null && backendAuthKeyEnvVar != null) {
+        if (backendAuthHeadersB64 != null) {
+            try {
+                var headerMappings = BackendAPIAuthHttpParamsDecorator.parseHeaderMappings(backendAuthHeadersB64);
+                monitor.info(String.format(
+                        "Registering backend API authentication decorator with %d configured headers",
+                        headerMappings.size()));
+
+                paramsProvider.registerSourceDecorator(
+                        new BackendAPIAuthHttpParamsDecorator(monitor, headerMappings));
+            } catch (Exception e) {
+                monitor.warning(String.format(
+                        "Failed to parse backend API authentication headers from property '%s': %s",
+                        BACKEND_API_AUTH_HEADERS_B64, e.getMessage()));
+            }
+        } else if (backendAuthKeyHeader != null && backendAuthKeyEnvVar != null) {
             monitor.info(String.format(
                     "Registering backend API authentication decorator with header '%s' and environment variable '%s'",
                     backendAuthKeyHeader, backendAuthKeyEnvVar));

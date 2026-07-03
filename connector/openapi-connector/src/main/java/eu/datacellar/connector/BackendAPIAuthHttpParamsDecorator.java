@@ -1,27 +1,31 @@
 package eu.datacellar.connector;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+
 import org.eclipse.edc.connector.dataplane.http.spi.HttpDataAddress;
 import org.eclipse.edc.connector.dataplane.http.spi.HttpParamsDecorator;
 import org.eclipse.edc.connector.dataplane.http.spi.HttpRequestParams.Builder;
 import org.eclipse.edc.spi.monitor.Monitor;
 import org.eclipse.edc.spi.types.domain.transfer.DataFlowStartMessage;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
- * Decorator class for adding API key authentication to proxied HTTP requests.
- * This decorator adds an API key header to each request for authentication with
- * the backend API.
+ * Decorator class for adding static authentication headers to proxied HTTP
+ * requests. This decorator adds configured headers to each request for
+ * authentication with the backend API.
  * 
- * The API key is retrieved from an environment variable specified during
- * construction.
- * If the environment variable is not found, a warning is logged and the request
- * proceeds
- * without authentication.
+ * Header values are retrieved from environment variables specified during
+ * construction. If an environment variable is not found, a warning is logged and
+ * that header is skipped.
  */
 public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
 
     private final Monitor monitor;
-    private final String apiKeyHeaderName;
-    private final String apiKeyEnvVar;
+    private final List<HeaderMapping> headerMappings;
 
     /**
      * Constructs a new instance of the BackendAPIAuthHttpParamsDecorator.
@@ -35,34 +39,77 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
      */
     public BackendAPIAuthHttpParamsDecorator(Monitor monitor, String apiKeyHeaderName, String apiKeyEnvVar) {
         this.monitor = monitor;
-        this.apiKeyHeaderName = apiKeyHeaderName;
-        this.apiKeyEnvVar = apiKeyEnvVar;
+        this.headerMappings = List.of(new HeaderMapping(apiKeyHeaderName, apiKeyEnvVar));
     }
 
     /**
-     * Decorates the HTTP request by adding the API key authentication header.
-     * The API key is retrieved from the environment variable specified during
-     * construction.
-     * If the environment variable is not found, a warning is logged and the request
-     * proceeds without modification.
+     * Constructs a new instance of the BackendAPIAuthHttpParamsDecorator.
+     *
+     * @param monitor        The monitor object used for logging warnings and debug
+     *                       information
+     * @param headerMappings The backend authentication headers to inject. Each
+     *                       mapping contains a header name and the environment
+     *                       variable that contains its value.
+     */
+    public BackendAPIAuthHttpParamsDecorator(Monitor monitor, List<HeaderMapping> headerMappings) {
+        this.monitor = monitor;
+        this.headerMappings = List.copyOf(headerMappings);
+    }
+
+    /**
+     * Parses a base64-encoded JSON array of header mappings.
+     *
+     * Expected decoded JSON shape:
+     * [{"name":"X-User-ID","envvar":"BACKEND_AUTH_HEADER_0"}]
+     *
+     * @param encodedMappings Base64-encoded JSON header mappings
+     * @return Parsed header mappings
+     */
+    public static List<HeaderMapping> parseHeaderMappings(String encodedMappings) {
+        String json = new String(Base64.getDecoder().decode(encodedMappings), StandardCharsets.UTF_8);
+        JSONArray mappingsJson = new JSONArray(json);
+        List<HeaderMapping> mappings = new ArrayList<>();
+
+        for (int i = 0; i < mappingsJson.length(); i++) {
+            JSONObject mappingJson = mappingsJson.getJSONObject(i);
+            mappings.add(new HeaderMapping(
+                    mappingJson.getString("name"),
+                    mappingJson.getString("envvar")));
+        }
+
+        return mappings;
+    }
+
+    /**
+     * Decorates the HTTP request by adding configured backend authentication
+     * headers. Header values are retrieved from the mapped environment variables.
      *
      * @param request The data flow start message containing request details
      * @param address The HTTP data address for the request
      * @param builder The builder for HTTP request parameters
-     * @return The modified builder with the added API key header, or the unmodified
-     *         builder if the API key could not be retrieved
+     * @return The modified builder with the configured authentication headers
      */
     @Override
     public Builder decorate(DataFlowStartMessage request, HttpDataAddress address, Builder builder) {
-        String apiKey = System.getenv(apiKeyEnvVar);
+        for (HeaderMapping mapping : headerMappings) {
+            String headerValue = System.getenv(mapping.envVar());
 
-        if (apiKey == null) {
-            monitor.warning(String.format("API key not found in environment variable: %s", apiKeyEnvVar));
-            return builder;
+            if (headerValue == null) {
+                monitor.warning(String.format(
+                        "Backend authentication header value not found in environment variable: %s",
+                        mapping.envVar()));
+                continue;
+            }
+
+            monitor.debug(String.format(
+                    "Backend authentication header value found in environment variable: %s",
+                    mapping.envVar()));
+            builder.header(mapping.name(), headerValue);
         }
 
-        monitor.debug(String.format("API key found in environment variable: %s", apiKeyEnvVar));
-        builder.header(apiKeyHeaderName, System.getenv(apiKeyEnvVar));
         return builder;
+    }
+
+    public record HeaderMapping(String name, String envVar) {
     }
 }
