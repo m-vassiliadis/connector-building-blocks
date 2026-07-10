@@ -164,6 +164,8 @@ dataspace.openapi.url=http://host.docker.internal:9090/openapi.json
 
 This is the URL where the OpenAPI schema file of the Mock HTTP API is accessible. The connector will retrieve this file to dynamically build the assets and expose them to the data space.
 
+Multiple APIs can be configured with `dataspace.openapi.sources.b64`, whose value is a Base64-encoded JSON array of objects containing a stable `id` and a public `url`. Keep `dataspace.openapi.url` set to the first source during upgrades: its existing asset IDs remain unchanged, while later sources use IDs such as `payments--GET-status` to avoid catalogue collisions.
+
 Finally, the `dataspace.wallet.*`, `dataspace.trust.*` and `dataspace.uniresolver.*` properties are part of the W3C Verifiable Credentials extension and are not relevant for this example either.
 
 **4. Deploy the connector**

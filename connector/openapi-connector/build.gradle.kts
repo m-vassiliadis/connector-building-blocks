@@ -35,6 +35,10 @@ dependencies {
     implementation(libs.json)
     implementation(libs.okhttp3.okhttp)
 
+    testImplementation(libs.assertj)
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+
     if (
         project.hasProperty("useOauthIdentity") &&
         project.property("useOauthIdentity").toString().toBoolean()
@@ -76,6 +80,10 @@ dependencies {
     ) {
         api(project(":federated-catalog"))
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 application {

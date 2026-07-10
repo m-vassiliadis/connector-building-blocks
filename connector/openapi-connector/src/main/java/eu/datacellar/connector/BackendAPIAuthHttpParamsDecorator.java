@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 
 import org.eclipse.edc.connector.dataplane.http.spi.HttpDataAddress;
 import org.eclipse.edc.connector.dataplane.http.spi.HttpParamsDecorator;
@@ -26,6 +27,8 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
 
     private final Monitor monitor;
     private final List<HeaderMapping> headerMappings;
+    private final Map<String, List<HeaderMapping>> sourceHeaderMappings;
+    public static final String OPENAPI_SOURCE_ID_PROPERTY = "openapiSourceId";
 
     /**
      * Constructs a new instance of the BackendAPIAuthHttpParamsDecorator.
@@ -40,6 +43,7 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
     public BackendAPIAuthHttpParamsDecorator(Monitor monitor, String apiKeyHeaderName, String apiKeyEnvVar) {
         this.monitor = monitor;
         this.headerMappings = List.of(new HeaderMapping(apiKeyHeaderName, apiKeyEnvVar));
+        this.sourceHeaderMappings = Map.of();
     }
 
     /**
@@ -54,6 +58,15 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
     public BackendAPIAuthHttpParamsDecorator(Monitor monitor, List<HeaderMapping> headerMappings) {
         this.monitor = monitor;
         this.headerMappings = List.copyOf(headerMappings);
+        this.sourceHeaderMappings = Map.of();
+    }
+
+    public BackendAPIAuthHttpParamsDecorator(
+            Monitor monitor,
+            Map<String, List<HeaderMapping>> sourceHeaderMappings) {
+        this.monitor = monitor;
+        this.headerMappings = List.of();
+        this.sourceHeaderMappings = Map.copyOf(sourceHeaderMappings);
     }
 
     /**
@@ -91,7 +104,10 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
      */
     @Override
     public Builder decorate(DataFlowStartMessage request, HttpDataAddress address, Builder builder) {
-        for (HeaderMapping mapping : headerMappings) {
+        String sourceId = address.getStringProperty(OPENAPI_SOURCE_ID_PROPERTY);
+        List<HeaderMapping> effectiveMappings = mappingsForSource(sourceId);
+
+        for (HeaderMapping mapping : effectiveMappings) {
             String headerValue = System.getenv(mapping.envVar());
 
             if (headerValue == null) {
@@ -108,6 +124,12 @@ public class BackendAPIAuthHttpParamsDecorator implements HttpParamsDecorator {
         }
 
         return builder;
+    }
+
+    List<HeaderMapping> mappingsForSource(String sourceId) {
+        return sourceHeaderMappings.isEmpty()
+                ? headerMappings
+                : sourceHeaderMappings.getOrDefault(sourceId, List.of());
     }
 
     public record HeaderMapping(String name, String envVar) {

@@ -9,10 +9,12 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Optional;
 
 import javax.sql.DataSource;
@@ -69,6 +71,8 @@ public class OpenAPICoreExtension implements ServiceExtension {
     private static final String DATASOURCE_PASSWORD = "edc.datasource.default.password";
     private static final String EDC_HOSTNAME = "edc.hostname";
     private static final String DIDS_SEPARATOR = ",";
+    private static final String OPENAPI_SOURCE_ID_PROPERTY = BackendAPIAuthHttpParamsDecorator.OPENAPI_SOURCE_ID_PROPERTY;
+    private static final String OPENAPI_SPECIFICATION_PROPERTY = "openapiSpecification";
     // It would be more elegant and future-proof to reference the constants from
     // the appropriate edc modules.
     private static final String NEGOTIATION_SCOPE = "contract.negotiation";
@@ -91,6 +95,9 @@ public class OpenAPICoreExtension implements ServiceExtension {
 
     @Setting
     private static final String OPENAPI_URL = "dataspace.openapi.url";
+
+    @Setting
+    private static final String OPENAPI_SOURCES_B64 = "dataspace.openapi.sources.b64";
 
     @Setting
     private static final String HTTP_SCHEME = "dataspace.http.scheme";
@@ -249,11 +256,10 @@ public class OpenAPICoreExtension implements ServiceExtension {
     }
 
     @SuppressWarnings("unchecked")
-    private void createAssets(ServiceExtensionContext context) {
+    private void createAssets(ServiceExtensionContext context, List<OpenApiDocument> documents) {
         Monitor monitor = context.getMonitor();
         Slugify slg = Slugify.builder().lowerCase(false).build();
-        OpenAPI openAPI = readOpenAPISchema(context.getMonitor());
-        String baseUrl = context.getSetting(API_BASE_URL, extractBaseUrl(openapiUrl));
+        String configuredBaseUrl = context.getSetting(API_BASE_URL, null);
 
         boolean isAuthEnabled = context.getSetting(ENABLE_AUTHORIZATION_CONSTRAINT, "false")
                 .equals("true");
@@ -266,63 +272,84 @@ public class OpenAPICoreExtension implements ServiceExtension {
         String creatorName = context.getSetting(OMEGAX_DECORATION_CREATOR_NAME, null);
         String publisherHomepage = context.getSetting(OMEGAX_DECORATION_PUBLISHER_HOMEPAGE, null);
 
-        openAPI.getPaths().forEach((path, pathItem) -> {
-            pathItem.readOperationsMap().forEach((method, operation) -> {
-                String operationId = operation.getOperationId();
-                String assetId = slg.slugify(String.format("%s-%s", method, path));
+        documents.forEach(document -> {
+            OpenApiSource source = document.source();
+            OpenAPI openAPI = document.openAPI();
+            String baseUrl = configuredBaseUrl == null || configuredBaseUrl.isBlank()
+                    ? extractBaseUrl(source.url())
+                    : configuredBaseUrl;
 
-                HttpDataAddress dataAddress = HttpDataAddress.Builder.newInstance()
-                        .name(String.format("data-address-%s", assetId))
-                        .baseUrl(baseUrl)
-                        .path(path)
-                        .method(method.name())
-                        .contentType("application/json")
-                        .proxyBody(Boolean.toString(true))
-                        .proxyQueryParams(Boolean.toString(true))
-                        .build();
+            openAPI.getPaths().forEach((path, pathItem) -> {
+                pathItem.readOperationsMap().forEach((method, operation) -> {
+                    String operationId = operation.getOperationId();
+                    String operationAssetId = slg.slugify(String.format("%s-%s", method, path));
+                    String assetId = source.assetId(operationAssetId);
 
-                Asset.Builder assetBuilder = Asset.Builder.newInstance()
-                        .id(assetId)
-                        .name(String.format("%s %s (%s)", method, path, operationId))
-                        .dataAddress(dataAddress);
-
-                if (isOmegaxDecorationEnabled) {
-                    OmegaxAssetDecorator.Context decorationContext = new OmegaxAssetDecorator.Context.Builder()
-                            .monitor(monitor)
-                            .operation(operation)
+                    HttpDataAddress dataAddress = HttpDataAddress.Builder.newInstance()
+                            .name(String.format("data-address-%s", assetId))
+                            .baseUrl(baseUrl)
                             .path(path)
                             .method(method.name())
-                            .baseUrl(baseUrl)
-                            .creatorName(creatorName)
-                            .publisherHomepage(publisherHomepage)
+                            .contentType("application/json")
+                            .proxyBody(Boolean.toString(true))
+                            .proxyQueryParams(Boolean.toString(true))
+                            .property(OPENAPI_SOURCE_ID_PROPERTY, source.id())
                             .build();
 
-                    assetBuilder = OmegaxAssetDecorator.decorate(assetBuilder, decorationContext);
-                }
+                    Asset.Builder assetBuilder = Asset.Builder.newInstance()
+                            .id(assetId)
+                            .name(source.legacyIds()
+                                    ? String.format("%s %s (%s)", method, path, operationId)
+                                    : String.format("%s: %s %s (%s)", source.id(), method, path, operationId))
+                            .dataAddress(dataAddress);
 
-                assetIndex.create(assetBuilder.build());
+                    if (documents.size() > 1) {
+                        assetBuilder = assetBuilder
+                                .property(OPENAPI_SOURCE_ID_PROPERTY, source.id())
+                                .property(OPENAPI_SPECIFICATION_PROPERTY, source.url());
+                    }
 
-                monitor.debug(String.format("Created asset '%s' with data address: %s", assetId,
-                        dataAddress.getProperties()));
+                    if (isOmegaxDecorationEnabled) {
+                        OmegaxAssetDecorator.Context decorationContext = new OmegaxAssetDecorator.Context.Builder()
+                                .monitor(monitor)
+                                .operation(operation)
+                                .path(path)
+                                .method(method.name())
+                                .baseUrl(baseUrl)
+                                .creatorName(creatorName)
+                                .publisherHomepage(publisherHomepage)
+                                .build();
 
-                Map<String, Object> extensions = operation.getExtensions();
-                Map<String, Object> presentationDefinition = null;
+                        assetBuilder = OmegaxAssetDecorator.decorate(assetBuilder, decorationContext);
+                    }
 
-                if (extensions != null && extensions.containsKey(OPENAPI_PRESENTATION_DEFINITION_EXT_KEY)) {
-                    presentationDefinition = (Map<String, Object>) extensions
-                            .get(OPENAPI_PRESENTATION_DEFINITION_EXT_KEY);
-                }
+                    assetIndex.create(assetBuilder.build());
 
-                monitor.debug("Building Policy for Presentation Definition: %s".formatted(presentationDefinition));
+                    monitor.debug(String.format("Created asset '%s' with data address: %s", assetId,
+                            dataAddress.getProperties()));
 
-                PolicyDefinition policy = policyBuilder.buildPolicyDefinition(presentationDefinition);
+                    Map<String, Object> extensions = operation.getExtensions();
+                    Map<String, Object> presentationDefinition = null;
 
-                policyStore.create(policy);
-                saveContractDefinition(policy.getId(), assetId);
+                    if (extensions != null && extensions.containsKey(OPENAPI_PRESENTATION_DEFINITION_EXT_KEY)) {
+                        presentationDefinition = (Map<String, Object>) extensions
+                                .get(OPENAPI_PRESENTATION_DEFINITION_EXT_KEY);
+                    }
 
-                monitor.debug(String.format("Created contract definition for asset '%s'", assetId));
+                    monitor.debug("Building Policy for Presentation Definition: %s".formatted(presentationDefinition));
+
+                    PolicyDefinition policy = policyBuilder.buildPolicyDefinition(presentationDefinition);
+
+                    policyStore.create(policy);
+                    saveContractDefinition(policy.getId(), assetId);
+
+                    monitor.debug(String.format("Created contract definition for asset '%s'", assetId));
+                });
             });
         });
+    }
+
+    private record OpenApiDocument(OpenApiSource source, OpenAPI openAPI) {
     }
 
     /**
@@ -332,7 +359,11 @@ public class OpenAPICoreExtension implements ServiceExtension {
      * @return the OpenAPI schema
      */
     public OpenAPI readOpenAPISchema(Monitor monitor) {
-        SwaggerParseResult result = new OpenAPIParser().readLocation(openapiUrl, null, null);
+        return readOpenAPISchema(openapiUrl, monitor);
+    }
+
+    private OpenAPI readOpenAPISchema(String sourceUrl, Monitor monitor) {
+        SwaggerParseResult result = new OpenAPIParser().readLocation(sourceUrl, null, null);
         OpenAPI openAPI = result.getOpenAPI();
 
         if (result.getMessages() != null) {
@@ -340,7 +371,7 @@ public class OpenAPICoreExtension implements ServiceExtension {
         }
 
         if (openAPI == null) {
-            throw new IllegalStateException(String.format("Failed to read OpenAPI schema from URL '%s'", openapiUrl));
+            throw new IllegalStateException(String.format("Failed to read OpenAPI schema from URL '%s'", sourceUrl));
         }
 
         return openAPI;
@@ -357,9 +388,9 @@ public class OpenAPICoreExtension implements ServiceExtension {
      * @throws IllegalStateException if validation fails and continueOnFailure is
      *                               disabled
      */
-    private boolean validateOpenAPISchema(Monitor monitor, boolean continueOnFailure) {
+    private OpenAPI validateOpenAPISchema(String sourceUrl, Monitor monitor, boolean continueOnFailure) {
         try {
-            SwaggerParseResult result = new OpenAPIParser().readLocation(openapiUrl, null, null);
+            SwaggerParseResult result = new OpenAPIParser().readLocation(sourceUrl, null, null);
             OpenAPI openAPI = result.getOpenAPI();
 
             if (result.getMessages() != null && !result.getMessages().isEmpty()) {
@@ -367,26 +398,26 @@ public class OpenAPICoreExtension implements ServiceExtension {
             }
 
             if (openAPI == null) {
-                String errorMsg = String.format("Failed to read OpenAPI schema from URL '%s'", openapiUrl);
+                String errorMsg = String.format("Failed to read OpenAPI schema from URL '%s'", sourceUrl);
 
                 if (continueOnFailure) {
                     monitor.warning(errorMsg + " - Skipping asset creation");
-                    return false;
+                    return null;
                 } else {
                     throw new IllegalStateException(errorMsg);
                 }
             }
 
-            monitor.info(String.format("Successfully validated OpenAPI schema from URL '%s'", openapiUrl));
-            return true;
+            monitor.info(String.format("Successfully validated OpenAPI schema from URL '%s'", sourceUrl));
+            return openAPI;
 
         } catch (Exception e) {
-            String errorMsg = String.format("Error validating OpenAPI schema from URL '%s': %s", openapiUrl,
+            String errorMsg = String.format("Error validating OpenAPI schema from URL '%s': %s", sourceUrl,
                     e.getMessage());
 
             if (continueOnFailure) {
                 monitor.warning(errorMsg + " - Skipping asset creation");
-                return false;
+                return null;
             } else {
                 throw new IllegalStateException(errorMsg, e);
             }
@@ -513,29 +544,57 @@ public class OpenAPICoreExtension implements ServiceExtension {
         registerPolicyFunctions(context);
 
         openapiUrl = context.getSetting(OPENAPI_URL, null);
+        String encodedOpenApiSources = context.getSetting(OPENAPI_SOURCES_B64, null);
+        boolean sourceScopedAuthEnabled = encodedOpenApiSources != null && !encodedOpenApiSources.isBlank();
+        boolean continueOnFailure = context.getSetting(OPENAPI_VALIDATION_CONTINUE_ON_FAILURE, "true")
+                .equals("true");
 
-        if (openapiUrl != null) {
-            boolean continueOnFailure = context.getSetting(OPENAPI_VALIDATION_CONTINUE_ON_FAILURE, "true")
-                    .equals("true");
-
-            if (validateOpenAPISchema(monitor, continueOnFailure)) {
-                createAssets(context);
+        List<OpenApiSource> sources;
+        try {
+            sources = OpenApiSource.resolve(openapiUrl, encodedOpenApiSources);
+        } catch (IllegalArgumentException exception) {
+            if (!continueOnFailure) {
+                throw exception;
             }
+            monitor.warning("Invalid OpenAPI sources configuration: %s - Falling back to the legacy URL"
+                    .formatted(exception.getMessage()));
+            sources = OpenApiSource.resolve(openapiUrl, null);
+            sourceScopedAuthEnabled = false;
+        }
+
+        if (sources.isEmpty()) {
+            monitor.warning(String.format("OpenAPI URL (properties '%s' and '%s') is not set", OPENAPI_URL,
+                    OPENAPI_SOURCES_B64));
         } else {
-            monitor.warning(String.format("OpenAPI URL (property '%s') is not set", OPENAPI_URL));
+            List<OpenApiDocument> documents = new ArrayList<>();
+            for (OpenApiSource source : sources) {
+                OpenAPI openAPI = validateOpenAPISchema(source.url(), monitor, continueOnFailure);
+                if (openAPI != null) {
+                    documents.add(new OpenApiDocument(source, openAPI));
+                }
+            }
+            createAssets(context, documents);
         }
 
         paramsProvider
                 .registerSourceDecorator(new ContractDetailsHttpParamsDecorator(monitor, contractNegotiationStore));
 
-        // Check if backend API authentication is configured. The multi-header
-        // setting takes precedence; the single API key settings remain supported for
-        // older participant packages.
+        Map<String, List<BackendAPIAuthHttpParamsDecorator.HeaderMapping>> sourceAuthMappings =
+                new LinkedHashMap<>();
+        sources.forEach(source -> sourceAuthMappings.put(source.id(), source.authHeaders()));
+
+        // Structured source configuration owns authentication selection. The legacy
+        // global settings remain supported only when no source list is configured.
         String backendAuthHeadersB64 = context.getSetting(BACKEND_API_AUTH_HEADERS_B64, null);
         String backendAuthKeyHeader = context.getSetting(BACKEND_API_AUTH_KEY_HEADER, null);
         String backendAuthKeyEnvVar = context.getSetting(BACKEND_API_AUTH_KEY_ENVVAR, null);
 
-        if (backendAuthHeadersB64 != null) {
+        if (sourceScopedAuthEnabled) {
+            monitor.info("Registering source-scoped backend API authentication for %d OpenAPI sources"
+                    .formatted(sourceAuthMappings.size()));
+            paramsProvider.registerSourceDecorator(
+                    new BackendAPIAuthHttpParamsDecorator(monitor, sourceAuthMappings));
+        } else if (backendAuthHeadersB64 != null) {
             try {
                 var headerMappings = BackendAPIAuthHttpParamsDecorator.parseHeaderMappings(backendAuthHeadersB64);
                 monitor.info(String.format(

@@ -4,7 +4,7 @@ import logging
 import pprint
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Union
 
 import httpx
 
@@ -272,36 +272,41 @@ class CatalogContent:
         asset_query_lower = asset_query.lower()
         _logger.debug("Looking for dataset matching query: %s", asset_query)
 
-        # First pass: try to find exact match on ID or name
-        for dset in self.datasets:
-            dset_id = dset.get("id", "").lower()
-            dset_name = dset.get("name", "").lower()
+        datasets = list(self.datasets)
 
-            if asset_query_lower == dset_id or asset_query_lower == dset_name:
-                _logger.debug(
-                    "Found exact match on dataset (id=%s, name=%s)",
-                    dset.get("id"),
-                    dset.get("name"),
-                )
-
+        # Canonical catalogue IDs are unambiguous and should always win over names.
+        for dset in datasets:
+            dset_id = self._dataset_id(dset).lower()
+            if asset_query_lower == dset_id:
+                _logger.debug("Found exact match on dataset ID %s", dset_id)
                 return dset
 
+        exact_name_matches = [
+            dset
+            for dset in datasets
+            if asset_query_lower == str(dset.get("name", "")).lower()
+        ]
+        if len(exact_name_matches) == 1:
+            return exact_name_matches[0]
+        if len(exact_name_matches) > 1:
+            self._raise_ambiguous_match(asset_query, exact_name_matches)
+
         # Second pass: try substring match on ID or name
-        for dset in self.datasets:
-            dset_id = dset.get("id", "").lower()
+        substring_matches = []
+        for dset in datasets:
+            dset_id = self._dataset_id(dset).lower()
             dset_name = dset.get("name", "").lower()
 
             if asset_query_lower in dset_id or asset_query_lower in dset_name:
-                _logger.debug(
-                    "Found substring match on dataset (id=%s, name=%s)",
-                    dset.get("id"),
-                    dset.get("name"),
-                )
+                substring_matches.append(dset)
 
-                return dset
+        if len(substring_matches) == 1:
+            return substring_matches[0]
+        if len(substring_matches) > 1:
+            self._raise_ambiguous_match(asset_query, substring_matches)
 
         # Fallback: find the dataset with the most similar ID (deterministic)
-        datasets_list = list(self.datasets)
+        datasets_list = datasets
 
         if not datasets_list:
             _logger.debug("No datasets available for similarity matching")
@@ -309,30 +314,42 @@ class CatalogContent:
 
         # Sort by ID for deterministic behavior when similarity scores are equal
         datasets_list_sorted = sorted(
-            datasets_list, key=lambda dset: dset.get("id", "")
+            datasets_list, key=self._dataset_id
         )
 
         most_similar_dataset = max(
             datasets_list_sorted,
             key=lambda dset: (
                 difflib.SequenceMatcher(
-                    None, asset_query_lower, dset.get("id", "").lower()
+                    None, asset_query_lower, self._dataset_id(dset).lower()
                 ).ratio(),
-                dset.get("id", ""),
+                self._dataset_id(dset),
             ),
         )
 
         similarity_ratio = difflib.SequenceMatcher(
-            None, asset_query_lower, most_similar_dataset.get("id", "").lower()
+            None, asset_query_lower, self._dataset_id(most_similar_dataset).lower()
         ).ratio()
 
         _logger.debug(
             "No exact or substring match found, using similarity fallback (id=%s, similarity=%.2f)",
-            most_similar_dataset.get("id"),
+            self._dataset_id(most_similar_dataset),
             similarity_ratio,
         )
 
         return most_similar_dataset
+
+    @staticmethod
+    def _dataset_id(dataset: dict) -> str:
+        return str(dataset.get("@id") or dataset.get("id") or "")
+
+    @classmethod
+    def _raise_ambiguous_match(cls, query: str, matches: List[dict]) -> None:
+        matching_ids = sorted(cls._dataset_id(dataset) for dataset in matches)
+        raise ValueError(
+            f"Asset query '{query}' is ambiguous; use an exact catalogue asset ID: "
+            + ", ".join(matching_ids)
+        )
 
 
 @dataclass
