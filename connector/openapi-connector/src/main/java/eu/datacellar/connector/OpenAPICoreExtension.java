@@ -48,7 +48,6 @@ import com.github.slugify.Slugify;
 
 import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.oas.models.OpenAPI;
-import io.swagger.v3.parser.core.models.AuthorizationValue;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 
 /**
@@ -187,6 +186,9 @@ public class OpenAPICoreExtension implements ServiceExtension {
 
     @Inject
     private TypeManager typeManager;
+
+    private final AuthenticatedOpenApiDocumentReader authenticatedOpenApiReader =
+            new AuthenticatedOpenApiDocumentReader();
 
     @Override
     public String name() {
@@ -393,13 +395,9 @@ public class OpenAPICoreExtension implements ServiceExtension {
             Monitor monitor, boolean continueOnFailure) {
         String sourceUrl = source.url();
         try {
-            List<AuthorizationValue> authorization = tokenProvider == null
-                    ? null
-                    : List.of(new AuthorizationValue()
-                            .keyName("Authorization")
-                            .value("Bearer " + tokenProvider.accessToken())
-                            .type("header"));
-            SwaggerParseResult result = new OpenAPIParser().readLocation(sourceUrl, authorization, null);
+            SwaggerParseResult result = tokenProvider == null
+                    ? new OpenAPIParser().readLocation(sourceUrl, null, null)
+                    : authenticatedOpenApiReader.read(sourceUrl, tokenProvider.accessToken());
             OpenAPI openAPI = result.getOpenAPI();
 
             if (result.getMessages() != null && !result.getMessages().isEmpty()) {
