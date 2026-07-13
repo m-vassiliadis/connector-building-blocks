@@ -72,6 +72,32 @@ class OpenApiSourceTest {
                         "X-API-Key", "BACKEND_AUTH_SOURCE_0_HEADER_0"));
     }
 
+    @Test
+    void parsesOAuth2PasswordGrantWithoutEmbeddingSecrets() {
+        String encoded = encode("""
+                [{
+                  "id":"energylabs",
+                  "url":"https://projects.example/v2/api-docs",
+                  "oauth2PasswordGrant":{
+                    "tokenUrl":"https://identity.example/token",
+                    "clientIdEnvvar":"ENERGY_CLIENT_ID",
+                    "clientSecretEnvvar":"ENERGY_CLIENT_SECRET",
+                    "usernameEnvvar":"ENERGY_USERNAME",
+                    "passwordEnvvar":"ENERGY_PASSWORD"
+                  }
+                }]
+                """);
+
+        var source = OpenApiSource.resolve(null, encoded).get(0);
+
+        assertThat(source.oauth2PasswordGrant()).isEqualTo(new OAuth2PasswordGrant(
+                "https://identity.example/token",
+                "ENERGY_CLIENT_ID",
+                "ENERGY_CLIENT_SECRET",
+                "ENERGY_USERNAME",
+                "ENERGY_PASSWORD"));
+    }
+
     private String encode(String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(UTF_8));
     }

@@ -15,13 +15,18 @@ import eu.datacellar.connector.BackendAPIAuthHttpParamsDecorator.HeaderMapping;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMapping> authHeaders) {
+record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMapping> authHeaders,
+        OAuth2PasswordGrant oauth2PasswordGrant) {
     OpenApiSource {
         authHeaders = List.copyOf(authHeaders);
     }
 
     OpenApiSource(String id, String url, boolean legacyIds) {
-        this(id, url, legacyIds, List.of());
+        this(id, url, legacyIds, List.of(), null);
+    }
+
+    OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMapping> authHeaders) {
+        this(id, url, legacyIds, authHeaders, null);
     }
 
     String assetId(String operationAssetId) {
@@ -39,7 +44,8 @@ record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMappin
                     .findFirst()
                     .orElse(new OpenApiSource("primary", normalizedLegacyUrl, true));
             sourcesByUrl.put(normalizedLegacyUrl, new OpenApiSource(
-                    matchingSource.id(), matchingSource.url(), true, matchingSource.authHeaders()));
+                    matchingSource.id(), matchingSource.url(), true, matchingSource.authHeaders(),
+                    matchingSource.oauth2PasswordGrant()));
         }
 
         for (OpenApiSource source : configuredSources) {
@@ -49,7 +55,8 @@ record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMappin
         List<OpenApiSource> resolved = new ArrayList<>(sourcesByUrl.values());
         if (normalizedLegacyUrl == null && !resolved.isEmpty()) {
             OpenApiSource first = resolved.get(0);
-            resolved.set(0, new OpenApiSource(first.id(), first.url(), true, first.authHeaders()));
+            resolved.set(0, new OpenApiSource(first.id(), first.url(), true, first.authHeaders(),
+                    first.oauth2PasswordGrant()));
         }
 
         Set<String> ids = new HashSet<>();
@@ -89,6 +96,12 @@ record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMappin
                     }
                 }
 
+                OAuth2PasswordGrant oauth2PasswordGrant = null;
+                JSONObject oauth2Json = item.optJSONObject("oauth2PasswordGrant");
+                if (oauth2Json != null) {
+                    oauth2PasswordGrant = OAuth2PasswordGrant.fromJson(oauth2Json);
+                }
+
                 if (id == null) {
                     throw new IllegalArgumentException("OpenAPI source #%d is missing a valid ID".formatted(index + 1));
                 }
@@ -96,7 +109,7 @@ record OpenApiSource(String id, String url, boolean legacyIds, List<HeaderMappin
                     throw new IllegalArgumentException("OpenAPI source '%s' is missing a URL".formatted(id));
                 }
 
-                sources.add(new OpenApiSource(id, url, false, authHeaders));
+                sources.add(new OpenApiSource(id, url, false, authHeaders, oauth2PasswordGrant));
             }
 
             return sources;

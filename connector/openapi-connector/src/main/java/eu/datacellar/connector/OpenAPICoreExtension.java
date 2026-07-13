@@ -48,6 +48,7 @@ import com.github.slugify.Slugify;
 
 import io.swagger.parser.OpenAPIParser;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.parser.core.models.AuthorizationValue;
 import io.swagger.v3.parser.core.models.SwaggerParseResult;
 
 /**
@@ -388,9 +389,17 @@ public class OpenAPICoreExtension implements ServiceExtension {
      * @throws IllegalStateException if validation fails and continueOnFailure is
      *                               disabled
      */
-    private OpenAPI validateOpenAPISchema(String sourceUrl, Monitor monitor, boolean continueOnFailure) {
+    private OpenAPI validateOpenAPISchema(OpenApiSource source, OAuth2PasswordTokenProvider tokenProvider,
+            Monitor monitor, boolean continueOnFailure) {
+        String sourceUrl = source.url();
         try {
-            SwaggerParseResult result = new OpenAPIParser().readLocation(sourceUrl, null, null);
+            List<AuthorizationValue> authorization = tokenProvider == null
+                    ? null
+                    : List.of(new AuthorizationValue()
+                            .keyName("Authorization")
+                            .value("Bearer " + tokenProvider.accessToken())
+                            .type("header"));
+            SwaggerParseResult result = new OpenAPIParser().readLocation(sourceUrl, authorization, null);
             OpenAPI openAPI = result.getOpenAPI();
 
             if (result.getMessages() != null && !result.getMessages().isEmpty()) {
@@ -562,13 +571,20 @@ public class OpenAPICoreExtension implements ServiceExtension {
             sourceScopedAuthEnabled = false;
         }
 
+        Map<String, OAuth2PasswordTokenProvider> oauthTokenProviders = new LinkedHashMap<>();
+        sources.stream()
+                .filter(source -> source.oauth2PasswordGrant() != null)
+                .forEach(source -> oauthTokenProviders.put(
+                        source.id(), new OAuth2PasswordTokenProvider(source.oauth2PasswordGrant())));
+
         if (sources.isEmpty()) {
             monitor.warning(String.format("OpenAPI URL (properties '%s' and '%s') is not set", OPENAPI_URL,
                     OPENAPI_SOURCES_B64));
         } else {
             List<OpenApiDocument> documents = new ArrayList<>();
             for (OpenApiSource source : sources) {
-                OpenAPI openAPI = validateOpenAPISchema(source.url(), monitor, continueOnFailure);
+                OpenAPI openAPI = validateOpenAPISchema(source, oauthTokenProviders.get(source.id()), monitor,
+                        continueOnFailure);
                 if (openAPI != null) {
                     documents.add(new OpenApiDocument(source, openAPI));
                 }
@@ -615,6 +631,12 @@ public class OpenAPICoreExtension implements ServiceExtension {
 
             paramsProvider.registerSourceDecorator(
                     new BackendAPIAuthHttpParamsDecorator(monitor, backendAuthKeyHeader, backendAuthKeyEnvVar));
+        }
+
+        if (!oauthTokenProviders.isEmpty()) {
+            monitor.info("Registering OAuth2 password-grant authentication for %d OpenAPI sources"
+                    .formatted(oauthTokenProviders.size()));
+            paramsProvider.registerSourceDecorator(new OAuth2HttpParamsDecorator(oauthTokenProviders));
         }
 
         monitor.info(String.format("Initialized extension: %s", this.getClass().getName()));
